@@ -1,0 +1,4 @@
+packages:
+  - services/web
+  - services/api
+  - tests/e2e
