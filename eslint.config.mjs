@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-export default [
+export default tseslint.config(
   {
     ignores: [
       '**/.next/**',
@@ -15,11 +15,27 @@ export default [
     ],
   },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
-    files: ['services/api/**/*.ts', 'tests/e2e/**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
+    extends: [...tseslint.configs.recommended],
+    languageOptions: {
+      parserOptions: {
+        project: false,
+        projectService: false,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ['services/api/**/*.ts'],
     languageOptions: {
       globals: globals.node,
     },
   },
-];
+  {
+    files: ['tests/e2e/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+);
