@@ -1,0 +1,6 @@
+# QA-owned requirements and contracts.
+# Changes in these paths require review from the QA owner.
+
+/tests/           @OlexandrHychka
+/contracts/       @OlexandrHychka
+/openspec/specs/  @OlexandrHychka
