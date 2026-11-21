@@ -49,11 +49,13 @@ The table below lists the tools and images chosen for phase 0. Every version was
 
 ## Build Scripts and NFR-006 Interpretation
 
-pnpm 12 blocks dependency lifecycle scripts by default. After each `pnpm install`, the output is checked for blocked scripts. If a script is required by Next.js, Playwright or another tool, the package is added to `onlyBuiltDependencies` in `pnpm-workspace.yaml`. Development defaults in `infra/compose/docker-compose.yml` use the `${VAR:-default}` form. These defaults contain no secrets. NFR-006 means the repository must not contain credentials; development-only defaults that expose no production data are not secrets.
+pnpm 12 blocks dependency lifecycle scripts by default. After each `pnpm install`, the output is checked for blocked scripts. Phase 0 allowed the following packages in `pnpm-workspace.yaml` because Testcontainers needs their native builds: `cpu-features`, `protobufjs`, `ssh2`. If Next.js or Playwright needs additional allowed builds, they are added after the install reports them.
+
+Development defaults in `infra/compose/docker-compose.yml` use the `${VAR:-default}` form. These defaults contain no secrets. NFR-006 means the repository must not contain credentials; development-only defaults that expose no production data are not secrets.
 
 ## Logging Decision
 
-Fastify provides `requestIdHeader`, `genReqId` and `requestIdLogLabel`. These options are evaluated first. If they satisfy NFR-007 (every log line contains a correlation ID), they are used. Otherwise a pino `mixin` is added. The chosen approach must keep the correlation ID in every log line and echo it in the response header.
+Fastify provides `requestIdHeader`, `genReqId` and `logController.requestIdLogLabel`. The request ID is read from the `x-correlation-id` header or generated as a UUID, and `logController.requestIdLogLabel: 'correlationId'` writes it to every request log line. The boot logger is configured with `base: { correlationId: bootCorrelationId }`, so non-request log lines also contain a `correlationId` field. An `onRequest` hook echoes the request ID in the `x-correlation-id` response header.
 
 ## Consequences
 
