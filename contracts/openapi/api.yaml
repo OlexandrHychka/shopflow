@@ -1,0 +1,633 @@
+openapi: 3.1.1
+info:
+  title: ShopFlow API
+  version: 0.1.0-draft
+  summary: Draft phase 1 contract for authentication and catalog.
+  description: |
+    Draft contract for phase 1 of ShopFlow. It covers authentication and the
+    product catalog only.
+
+    This file is a proposal. Each shape that depends on an open question names
+    the question ID in its description. See
+    `openspec/changes/phase-1-contracts/open-questions.md`.
+
+    All client errors use RFC 9457 Problem Details with the media type
+    `application/problem+json` (Q-09, Q-25, Q-26). Framework errors such as
+    an unknown route, HTTP 405, HTTP 413, HTTP 415 and malformed JSON also
+    use the Problem format. Every response, including errors, carries an
+    `x-correlation-id` header (phase 0). `GET /health` keeps the phase 0 body
+    because NFR-010 forbids a change to an existing field (Q-15).
+  contact:
+    name: ShopFlow QA owner
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:3001
+    description: Local Docker Compose stack
+security: []
+tags:
+  - name: system
+    description: Service health.
+  - name: auth
+    description: Account registration, login and the current user.
+  - name: catalog
+    description: Product list and product detail.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [system]
+      summary: Report the health of the API.
+      description: |
+        Returns HTTP 200 only when the database is available (NFR-008). The
+        body is the phase 0 body (Q-15).
+      responses:
+        '200':
+          description: The API and its dependencies are available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Database available
+                  value:
+                    status: ok
+        '503':
+          description: A dependency of the API is not available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                unhealthy:
+                  summary: Database not available
+                  value:
+                    status: error
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/register:
+    post:
+      operationId: registerAccount
+      tags: [auth]
+      summary: Create an account and return an access token.
+      description: |
+        Creates the account with the role CUSTOMER (AUTH-001, AUTH-007) and
+        returns the same body as a login. The email address is trimmed and
+        lower-cased before the duplicate check (Q-02). The password rules are
+        in Q-01.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              valid:
+                summary: Valid registration
+                value:
+                  email: customer@example.com
+                  password: correct-horse-battery
+      responses:
+        '201':
+          description: The account is created and the access token is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              examples:
+                created:
+                  summary: New customer
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.signature
+                    tokenType: Bearer
+                    expiresIn: 3600
+                    user:
+                      id: 6f1c2f34-6a4b-4f4e-9a3e-2f0f6a1c9d21
+                      email: customer@example.com
+                      role: CUSTOMER
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Exchange valid credentials for an access token.
+      description: |
+        Returns a token with a lifetime of 60 minutes (AUTH-004). An unknown
+        email address and a wrong password give the same HTTP 401 response
+        (Q-11). The password minimum applies to registration only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              valid:
+                summary: Valid credentials
+                value:
+                  email: customer@example.com
+                  password: correct-horse-battery
+      responses:
+        '200':
+          description: The credentials are valid and the access token is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              examples:
+                loggedIn:
+                  summary: Existing customer
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.signature
+                    tokenType: Bearer
+                    expiresIn: 3600
+                    user:
+                      id: 6f1c2f34-6a4b-4f4e-9a3e-2f0f6a1c9d21
+                      email: customer@example.com
+                      role: CUSTOMER
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedCredentials'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Return the identity of the authenticated user.
+      description: |
+        The protected endpoint for AUTH-005. AUTH-008 defines the response.
+        The identity has the user ID, the email address and the role (Q-14).
+        A missing, invalid or expired token returns HTTP 401 (AUTH-005).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The identity of the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                currentUser:
+                  summary: Authenticated customer
+                  value:
+                    id: 6f1c2f34-6a4b-4f4e-9a3e-2f0f6a1c9d21
+                    email: customer@example.com
+                    role: CUSTOMER
+        '401':
+          $ref: '#/components/responses/UnauthorizedToken'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /products:
+    get:
+      operationId: listProducts
+      tags: [catalog]
+      summary: Return a page of products.
+      description: |
+        Public endpoint (Q-17). The default page size is 10 (CAT-002). The
+        maximum page size is 100 (Q-04). The default order is `sku` ascending
+        (Q-05). `q` is a case-insensitive literal substring of the name
+        (CAT-003, Q-06).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: A page of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+              examples:
+                firstPage:
+                  summary: First page without a search
+                  value:
+                    items:
+                      - sku: SKU-0001
+                        name: Phone Case
+                        description: A hard case for a phone.
+                        price:
+                          amount: 1999
+                          currency: EUR
+                      - sku: SKU-0002
+                        name: USB-C Cable
+                        description: A two-metre charging cable.
+                        price:
+                          amount: 1299
+                          currency: EUR
+                    page: 1
+                    pageSize: 10
+                    total: 24
+                    totalPages: 3
+                emptyPage:
+                  summary: A page beyond the last page (Q-24)
+                  value:
+                    items: []
+                    page: 99
+                    pageSize: 10
+                    total: 24
+                    totalPages: 3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /products/{sku}:
+    get:
+      operationId: getProduct
+      tags: [catalog]
+      summary: Return one product by SKU.
+      description: |
+        Public endpoint (Q-17). An unknown SKU returns HTTP 404 (CAT-004).
+        The SKU pattern is in Q-07.
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: |
+            The product SKU. The lookup is exact. Any value that does not
+            match a product returns HTTP 404 (Q-27). The path parameter does
+            not enforce the stored SKU format (Q-07).
+          schema:
+            type: string
+          examples:
+            knownSku:
+              summary: Seeded SKU
+              value: SKU-0001
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+              examples:
+                product:
+                  summary: A seeded product
+                  value:
+                    sku: SKU-0001
+                    name: Phone Case
+                    description: A hard case for a phone.
+                    price:
+                      amount: 1999
+                      currency: EUR
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A JWT in the `Authorization` header. Claims: `sub`, `email`, `role`,
+        `iat`, `exp`, `iss` (Q-03). The lifetime is 60 minutes (AUTH-004).
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: |
+        The 1-based page number (Q-13). A page beyond the last page returns
+        HTTP 200 with an empty `items` array and the real `total` and
+        `totalPages` (Q-24).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100000
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: The number of items per page. The maximum is 100 (Q-04).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+    Search:
+      name: q
+      in: query
+      required: false
+      description: |
+        The search text. The API matches it against the product name, without
+        case sensitivity, as a literal substring (CAT-003, Q-06). An empty
+        value applies no filter.
+      schema:
+        type: string
+        maxLength: 100
+  responses:
+    BadRequest:
+      description: The request is not valid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validationError:
+              summary: Short password
+              value:
+                type: https://shopflow.example/problems/validation-error
+                title: Validation failed
+                status: 400
+                detail: The request body is not valid.
+                instance: /auth/register
+                errors:
+                  - pointer: /password
+                    code: too_short
+                    message: The password has fewer than 8 characters.
+                    source: body
+    UnauthorizedToken:
+      description: The access token is missing, invalid or expired (AUTH-005).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            missingToken:
+              summary: No access token
+              value:
+                type: https://shopflow.example/problems/unauthorized
+                title: Unauthorized
+                status: 401
+                detail: The request needs a valid access token.
+                instance: /auth/me
+    UnauthorizedCredentials:
+      description: The credentials are not valid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            badCredentials:
+              summary: Wrong email address or password
+              value:
+                type: https://shopflow.example/problems/unauthorized
+                title: Unauthorized
+                status: 401
+                detail: The email address or the password is incorrect.
+                instance: /auth/login
+    NotFound:
+      description: The resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unknownSku:
+              summary: Unknown SKU
+              value:
+                type: https://shopflow.example/problems/not-found
+                title: Not found
+                status: 404
+                detail: The product does not exist.
+                instance: /products/SKU-9999
+    Conflict:
+      description: |
+        The request conflicts with the current state. A duplicate
+        registration returns this response (AUTH-002). It reveals that the
+        account exists. This is an accepted risk required by AUTH-002 (Q-02).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            duplicateEmail:
+              summary: Email address already registered
+              value:
+                type: https://shopflow.example/problems/conflict
+                title: Conflict
+                status: 409
+                detail: The email address is already registered.
+                instance: /auth/register
+    InternalError:
+      description: |
+        An unexpected error. The body has no stack trace, no SQL and no
+        internal URL (NFR-005, Q-26).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internalError:
+              summary: Unexpected failure
+              value:
+                type: https://shopflow.example/problems/internal-error
+                title: Internal server error
+                status: 500
+                detail: An unexpected error occurred.
+                instance: /products
+  schemas:
+    HealthResponse:
+      type: object
+      description: The phase 0 health body (Q-15).
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          description: |
+            `ok` with HTTP 200 when the dependencies are available. `error`
+            with HTTP 503 when a dependency is not available.
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: The email address. The API trims and lower-cases it (Q-02).
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 8
+          maxLength: 128
+          description: |
+            The plain password. It is hashed before storage (AUTH-006).
+            Length is the number of Unicode code points (Q-01). A value of
+            only whitespace is rejected by the service, not by this schema.
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 1
+          maxLength: 128
+          description: The plain password. The registration minimum does not apply here.
+    AuthResponse:
+      type: object
+      description: The body of a successful registration or login.
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: A JWT with the claims in Q-03.
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          enum: [3600]
+          description: The token lifetime in seconds (AUTH-004).
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      description: The identity of an account.
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: The stored, lower-cased email address.
+        role:
+          type: string
+          enum: [CUSTOMER, ADMIN]
+          description: |
+            The role of the account. Every new account has CUSTOMER (AUTH-007).
+            The client uses the value only to hide controls (Q-10).
+    Money:
+      type: object
+      description: |
+        A price in the base currency. `amount` is a whole number of minor
+        units (cents) (Q-08).
+      required: [amount, currency]
+      properties:
+        amount:
+          type: integer
+          minimum: 0
+          description: The amount in cents.
+          examples: [1999]
+        currency:
+          type: string
+          enum: [EUR]
+    Product:
+      type: object
+      required: [sku, name, description, price]
+      properties:
+        sku:
+          type: string
+          pattern: '^[A-Z0-9]+(-[A-Z0-9]+)*$'
+          minLength: 3
+          maxLength: 32
+          description: The unique product code (Q-07).
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        price:
+          $ref: '#/components/schemas/Money'
+    ProductPage:
+      type: object
+      description: |
+        One page of products in `sku` ascending order (Q-05, Q-13). A page
+        beyond the last page has an empty `items` array and the real `total`
+        and `totalPages` (Q-24).
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    Problem:
+      type: object
+      description: |
+        An RFC 9457 Problem Details body (Q-09). The `detail` text contains no
+        stack trace, no password hash and no internal URL (NFR-005).
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+          format: uri
+          examples:
+            - https://shopflow.example/problems/validation-error
+            - https://shopflow.example/problems/internal-error
+        title:
+          type: string
+          examples: [Validation failed]
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          examples: [The request body is not valid.]
+        instance:
+          type: string
+          description: The path of the request.
+          examples: [/auth/register]
+        errors:
+          type: array
+          description: The field errors. This member is present for HTTP 400.
+          items:
+            $ref: '#/components/schemas/FieldError'
+    FieldError:
+      type: object
+      required: [pointer, code, message, source]
+      properties:
+        pointer:
+          type: string
+          description: |
+            For a body field this is a JSON Pointer such as `/password`.
+            For a query parameter this is the parameter name such as `page`.
+          examples: [/password]
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: A message for the caller. It contains no technical detail.
+          examples: [The password has fewer than 8 characters.]
+        source:
+          type: string
+          enum: [body, query]
+          description: The location of the field that failed validation.
+    ErrorCode:
+      type: string
+      description: |
+        The field error vocabulary (Q-25). The HTTP status and the problem
+        `type` carry the class of the error. The code names the field rule.
+        A new code needs a contract change.
+      enum: [required, too_short, too_long, invalid_format, out_of_range, unknown_field]
