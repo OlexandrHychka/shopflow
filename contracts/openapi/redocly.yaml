@@ -1,0 +1,9 @@
+# Lint rules for the ShopFlow API contract.
+# Run: npx --yes @redocly/cli@2.82.0 lint contracts/openapi/api.yaml --config contracts/openapi/redocly.yaml
+extends:
+  - recommended
+rules:
+  # The contract targets the local Docker Compose stack on localhost.
+  no-server-example.com: off
+  # GET /health has no client error. A 4xx response would be wrong.
+  operation-4xx-response: off
