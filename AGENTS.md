@@ -95,7 +95,7 @@ The toolchain decisions and pinned versions are in `docs/adr/0001-toolchain.md`.
 - Branch name: `<type>/KAN-<n>-<short-kebab-slug>`. Types: `feature`, `fix`, `chore`, `docs`, `test`, `ci`. The slug has at most 5 words.
 - Commit message: Conventional Commits. Put the key at the end of the subject, for example `feat(auth): add registration endpoint (KAN-12)`.
 - Pull request title: same as the squash commit subject, with the key. Put the key in the description too. Do not put a Jira URL in the repository files or in the pull request text. Use the key only.
-- One story = one OpenSpec change = one branch = one pull request.
+- One story = one branch = one pull request. A story that changes behavior or requirements also has exactly one OpenSpec change. Stories of type `chore`, `docs`, `ci` or `test` without a behavior change have no OpenSpec change. For these, put `Jira: KAN-<n> (epic KAN-<m>)` as the first line of the pull request description.
 - The first lines of `proposal.md` of each change are: `Jira: KAN-<n> (epic KAN-<m>)`.
 - You do not change Jira statuses. The QA owner does.
 - Epic start protocol. Before work on a new epic starts:
