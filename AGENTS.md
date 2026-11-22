@@ -67,3 +67,24 @@ Key rule: **a test is derived from a requirement, not from the code**. An agent 
 - scenarios and acceptance tests are ready before implementation;
 - the implementation agent must not change the `tests/`, `contracts/` and `openspec/specs/` folders without a separate change proposal;
 - in `CODEOWNERS`, these folders are assigned to you, and `main` requires your review.
+
+## 5. Commands
+
+Run these commands from the repository root.
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm install` | Install dependencies after `package.json` or lockfile changes. |
+| `pnpm lint` | Run ESLint on the whole repository. |
+| `pnpm format:check` | Check Prettier formatting. |
+| `pnpm format` | Apply Prettier formatting. |
+| `pnpm typecheck` | Run TypeScript checks for every workspace package. |
+| `pnpm test` | Run all package-level tests. |
+| `pnpm --filter @shopflow/api test:unit` | Run API unit tests. |
+| `pnpm --filter @shopflow/api test:component` | Run API component tests with Testcontainers. |
+| `pnpm --filter @shopflow/web test` | Run Web UI component tests. |
+| `pnpm --filter @shopflow/e2e test:e2e` | Run Playwright E2E tests. |
+| `docker compose -f infra/compose/docker-compose.yml up --wait` | Start the whole system. |
+| `docker compose -f infra/compose/docker-compose.yml down -v` | Stop the system and remove volumes. |
+
+The toolchain decisions and pinned versions are in `docs/adr/0001-toolchain.md`.
