@@ -88,3 +88,19 @@ Run these commands from the repository root.
 | `docker compose -f infra/compose/docker-compose.yml down -v` | Stop the system and remove volumes. |
 
 The toolchain decisions and pinned versions are in `docs/adr/0001-toolchain.md`.
+
+## 6. Jira and Git conventions
+
+- The Jira project key is `KAN`. Never invent a key. If a task has no key, stop and ask the QA owner.
+- Branch name: `<type>/KAN-<n>-<short-kebab-slug>`. Types: `feature`, `fix`, `chore`, `docs`, `test`, `ci`. The slug has at most 5 words.
+- Commit message: Conventional Commits. Put the key at the end of the subject, for example `feat(auth): add registration endpoint (KAN-12)`.
+- Pull request title: same as the squash commit subject, with the key. Put the key in the description too. Do not put a Jira URL in the repository files or in the pull request text. Use the key only.
+- One story = one branch = one pull request. A story that changes behavior or requirements also has exactly one OpenSpec change. Stories of type `chore`, `docs`, `ci` or `test` without a behavior change have no OpenSpec change. For these, put `Jira: KAN-<n> (epic KAN-<m>)` as the first line of the pull request description.
+- The first lines of `proposal.md` of each change are: `Jira: KAN-<n> (epic KAN-<m>)`.
+- You do not change Jira statuses. The QA owner does.
+- Epic start protocol. Before work on a new epic starts:
+  1. Run `openspec list` and list all changes.
+  2. Archive only a change that is complete (all tasks done) AND merged to main. Check the git history. Never archive an incomplete or unmerged change.
+  3. Archive in a separate small pull request, branch `chore/KAN-<n>-archive-<names>`. Use `openspec archive`. If the change has no delta specs, use the option that skips spec updates (check `openspec archive --help`; do not guess).
+  4. Show the QA owner what moved. Wait for the merge before the new epic work starts.
+- Archiving is the only step that updates `openspec/specs/` from a change. Do it only after the pull request of that change is merged.
