@@ -14,7 +14,7 @@ This change produces planning artifacts only. It writes no application code.
 - Add a delta-spec draft for the new requirement AUTH-008. AUTH-005 needs a protected endpoint. The delta stays inside this change until the QA owner approves it.
 - Add the ambiguity list. Each item has a proposed answer.
 - Add the proposed split of phase 1 into small OpenSpec changes.
-- Add the technical decisions that need approval. Each decision has options and a recommendation.
+- Record the technical decisions. Each decision has options, a recommendation and a status.
 - Add the CI plan for phase 1.
 - Add test notes for every in-scope requirement.
 - Add no application code, no workflow change and no test.
