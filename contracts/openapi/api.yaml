@@ -12,11 +12,13 @@ info:
     `openspec/changes/phase-1-contracts/open-questions.md`.
 
     All client errors use RFC 9457 Problem Details with the media type
-    `application/problem+json` (Q-09, Q-25, Q-26). Framework errors such as
-    an unknown route, HTTP 405, HTTP 413, HTTP 415 and malformed JSON also
-    use the Problem format. Every response, including errors, carries an
-    `x-correlation-id` header (phase 0). `GET /health` keeps the phase 0 body
-    because NFR-010 forbids a change to an existing field (Q-15).
+    `application/problem+json` (Q-09, Q-25, Q-26). The `type` member comes
+    from the closed `ProblemType` set. Framework errors such as an unknown
+    route, HTTP 405, HTTP 413, HTTP 415 and malformed JSON also use the
+    Problem format. Every error response carries an `x-correlation-id`
+    header (phase 0, Q-26). `GET /health` keeps the phase 0 body because
+    NFR-010 forbids a change to an existing field (Q-15). It is the only
+    operation whose error response is not a Problem body (Q-26).
   contact:
     name: ShopFlow QA owner
   license:
@@ -65,6 +67,8 @@ paths:
                   summary: Database not available
                   value:
                     status: error
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
         '500':
           $ref: '#/components/responses/InternalError'
   /auth/register:
@@ -109,8 +113,14 @@ paths:
                       role: CUSTOMER
         '400':
           $ref: '#/components/responses/BadRequest'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '500':
           $ref: '#/components/responses/InternalError'
   /auth/login:
@@ -156,6 +166,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/UnauthorizedCredentials'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '500':
           $ref: '#/components/responses/InternalError'
   /auth/me:
@@ -185,6 +201,8 @@ paths:
                     role: CUSTOMER
         '401':
           $ref: '#/components/responses/UnauthorizedToken'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
         '500':
           $ref: '#/components/responses/InternalError'
   /products:
@@ -239,6 +257,8 @@ paths:
                     totalPages: 3
         '400':
           $ref: '#/components/responses/BadRequest'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
         '500':
           $ref: '#/components/responses/InternalError'
   /products/{sku}:
@@ -282,6 +302,8 @@ paths:
                       currency: EUR
         '404':
           $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -293,6 +315,23 @@ components:
       description: |
         A JWT in the `Authorization` header. Claims: `sub`, `email`, `role`,
         `iat`, `exp`, `iss` (Q-03). The lifetime is 60 minutes (AUTH-004).
+  headers:
+    CorrelationId:
+      description: |
+        The correlation ID of the request. Phase 0 sets this header on every
+        error response (Q-26).
+      schema:
+        type: string
+      examples:
+        correlationId:
+          value: 9f2b7c1e-4a3d-4f8e-8c21-6d5a0b7e3f14
+    BearerChallenge:
+      description: |
+        The authentication scheme that the request must use. It is present
+        on HTTP 401 for a token failure (Q-03, Q-29).
+      schema:
+        type: string
+        enum: [Bearer]
   parameters:
     Page:
       name: page
@@ -301,7 +340,8 @@ components:
       description: |
         The 1-based page number (Q-13). A page beyond the last page returns
         HTTP 200 with an empty `items` array and the real `total` and
-        `totalPages` (Q-24).
+        `totalPages` (Q-24). A value below 1 or above the maximum returns
+        HTTP 400 with `code: out_of_range` (Q-24, Q-25).
       schema:
         type: integer
         minimum: 1
@@ -311,7 +351,9 @@ components:
       name: pageSize
       in: query
       required: false
-      description: The number of items per page. The maximum is 100 (Q-04).
+      description: |
+        The number of items per page. The maximum is 100 (Q-04). A value
+        outside 1..100 returns HTTP 400 with `code: out_of_range` (Q-25).
       schema:
         type: integer
         minimum: 1
@@ -331,6 +373,9 @@ components:
   responses:
     BadRequest:
       description: The request is not valid.
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -350,7 +395,16 @@ components:
                     message: The password has fewer than 8 characters.
                     source: body
     UnauthorizedToken:
-      description: The access token is missing, invalid or expired (AUTH-005).
+      description: |
+        The access token is missing, invalid, expired, unsigned, wrongly
+        signed or not a `Bearer` token (AUTH-005, AUTH-008, Q-03). Every
+        token failure returns this one body, so the response does not tell
+        the caller which check failed (Q-29).
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/BearerChallenge'
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -364,8 +418,19 @@ components:
                 status: 401
                 detail: The request needs a valid access token.
                 instance: /auth/me
+            wrongScheme:
+              summary: An authorization scheme other than Bearer
+              value:
+                type: https://shopflow.example/problems/unauthorized
+                title: Unauthorized
+                status: 401
+                detail: The request needs a valid access token.
+                instance: /auth/me
     UnauthorizedCredentials:
       description: The credentials are not valid.
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -380,7 +445,12 @@ components:
                 detail: The email address or the password is incorrect.
                 instance: /auth/login
     NotFound:
-      description: The resource does not exist.
+      description: |
+        The resource does not exist (CAT-004). An unknown route also returns
+        this response with `type: not-found` (Q-26).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -394,11 +464,40 @@ components:
                 status: 404
                 detail: The product does not exist.
                 instance: /products/SKU-9999
+            unknownRoute:
+              summary: Unknown route
+              value:
+                type: https://shopflow.example/problems/not-found
+                title: Not found
+                status: 404
+                detail: The route does not exist.
+                instance: /unknown
+    MethodNotAllowed:
+      description: The path does not define this method (Q-26).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            methodNotAllowed:
+              summary: Unsupported method
+              value:
+                type: https://shopflow.example/problems/method-not-allowed
+                title: Method not allowed
+                status: 405
+                detail: The path does not support this method.
+                instance: /auth/login
     Conflict:
       description: |
         The request conflicts with the current state. A duplicate
         registration returns this response (AUTH-002). It reveals that the
         account exists. This is an accepted risk required by AUTH-002 (Q-02).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -412,10 +511,49 @@ components:
                 status: 409
                 detail: The email address is already registered.
                 instance: /auth/register
+    PayloadTooLarge:
+      description: The request body is above the size limit (Q-26).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            payloadTooLarge:
+              summary: Body above the limit
+              value:
+                type: https://shopflow.example/problems/payload-too-large
+                title: Payload too large
+                status: 413
+                detail: The request body is too large.
+                instance: /auth/register
+    UnsupportedMediaType:
+      description: The request media type is not `application/json` (Q-26).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unsupportedMediaType:
+              summary: Wrong media type
+              value:
+                type: https://shopflow.example/problems/unsupported-media-type
+                title: Unsupported media type
+                status: 415
+                detail: The request media type is not supported.
+                instance: /auth/register
     InternalError:
       description: |
         An unexpected error. The body has no stack trace, no SQL and no
         internal URL (NFR-005, Q-26).
+      headers:
+        x-correlation-id:
+          $ref: '#/components/headers/CorrelationId'
       content:
         application/problem+json:
           schema:
@@ -496,7 +634,11 @@ components:
           $ref: '#/components/schemas/User'
     User:
       type: object
-      description: The identity of an account.
+      description: |
+        The identity of an account. It contains no password hash, no password
+        salt, no access token and no other value that derives from a secret
+        (AUTH-008, Q-29). A later field is additive and allowed by NFR-010
+        (Q-14).
       required: [id, email, role]
       properties:
         id:
@@ -580,11 +722,7 @@ components:
       required: [type, title, status, detail]
       properties:
         type:
-          type: string
-          format: uri
-          examples:
-            - https://shopflow.example/problems/validation-error
-            - https://shopflow.example/problems/internal-error
+          $ref: '#/components/schemas/ProblemType'
         title:
           type: string
           examples: [Validation failed]
@@ -604,6 +742,23 @@ components:
           description: The field errors. This member is present for HTTP 400.
           items:
             $ref: '#/components/schemas/FieldError'
+    ProblemType:
+      type: string
+      format: uri
+      description: |
+        The closed set of problem types (Q-26). The HTTP status follows from
+        the type. A new type needs a contract change.
+      enum:
+        - https://shopflow.example/problems/validation-error
+        - https://shopflow.example/problems/unauthorized
+        - https://shopflow.example/problems/not-found
+        - https://shopflow.example/problems/method-not-allowed
+        - https://shopflow.example/problems/conflict
+        - https://shopflow.example/problems/payload-too-large
+        - https://shopflow.example/problems/unsupported-media-type
+        - https://shopflow.example/problems/internal-error
+      examples:
+        - https://shopflow.example/problems/validation-error
     FieldError:
       type: object
       required: [pointer, code, message, source]

@@ -457,7 +457,7 @@ The `Problem.type` value comes from a closed set. The contract holds the set in 
 | `unsupported-media-type` | 415 | A media type other than `application/json` |
 | `internal-error` | 500 | An unexpected error |
 
-1. `Problem.type` refers to `ProblemType`. A value outside the set fails the contract lint.
+1. `Problem.type` refers to `ProblemType`. The URI prefix is `https://shopflow.example/problems/`; the table above names the suffix. A value outside the set fails the contract lint.
 2. Each operation lists the response for HTTP 405. `POST /auth/register` and `POST /auth/login` also list HTTP 413 and HTTP 415, because they carry a body. An unknown route returns HTTP 404 with `type: not-found`; no operation owns that response, so it is documented in the info description and in the `NotFound` response.
 3. Every error response declares the header `x-correlation-id`. The contract holds it in one `CorrelationId` header component. QA-017 can then check the header.
 4. `GET /health` returns HTTP 503 with the phase 0 body, not a Problem body (Q-15). This is the only exception.
