@@ -1,15 +1,14 @@
 openapi: 3.1.1
 info:
   title: ShopFlow API
-  version: 0.1.0-draft
-  summary: Draft phase 1 contract for authentication and catalog.
+  version: 1.0.0
+  summary: Phase 1 contract for authentication and the catalog.
   description: |
-    Draft contract for phase 1 of ShopFlow. It covers authentication and the
-    product catalog only.
+    Phase 1 contract of ShopFlow. It covers authentication and the product
+    catalog only.
 
-    This file is a proposal. Each shape that depends on an open question names
-    the question ID in its description. See
-    `openspec/changes/phase-1-contracts/open-questions.md`.
+    Each shape names the question ID that decides it. All questions are
+    closed. See `openspec/changes/phase-1-contracts/open-questions.md`.
 
     All client errors use RFC 9457 Problem Details with the media type
     `application/problem+json` (Q-09, Q-25, Q-26). The `type` member comes

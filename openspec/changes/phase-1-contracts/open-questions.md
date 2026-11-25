@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: closed. The QA owner approved Q-01 to Q-21, Q-27 and Q-28 on 22 November 2026. T-01, T-02, T-03, T-05, T-06 and T-08 are approved. T-04, T-07, Q-23, Q-24, Q-25 and Q-26 are approved with conditions. Each of these six items has a `Conditions` block. The conditions are part of the decision, not a note. Q-22 is resolved. Q-29 is approved on 25 November 2026. No question stays open.
+Status: closed. The QA owner approved Q-01 to Q-21, Q-27 and Q-28 on 22 November 2026. T-01, T-02, T-03, T-05, T-06 and T-08 are approved. T-04, T-07, Q-23, Q-24, Q-25 and Q-26 are approved with conditions. Each of these six items has a `Conditions` block. The conditions are part of the decision, not a note. Q-22 is resolved. Q-29 is approved on 25 November 2026. AUTH-008 is approved on 25 November 2026. No question stays open.
 
 The OpenAPI draft in `contracts/openapi/api.yaml` encodes the proposed answers. The contract names the question ID where an answer affects a shape. A rejected answer changes the contract before the code exists.
 

@@ -68,11 +68,12 @@ This change delivers planning artifacts only. It writes no application code, no 
 - [x] 6.3 Check the file scope. Check: `git status --porcelain | awk '{print $2}'` lists only paths under `contracts/openapi/` or `openspec/changes/phase-1-contracts/`.
 - [x] 6.4 Commit with a Conventional Commit subject and the Jira key at the end. Check: `git log -1 --pretty=%s` matches `^docs\(contracts\): .+ \(KAN-11\)$`.
 - [x] 6.5 Push the branch and open the pull request with the same subject as the squash commit. Check: `git status --short --branch` shows no local commit ahead of the remote. Merged in pull request #5.
+- [x] 6.6 Record the AUTH-008 approval with the date of the QA owner's decision (D-12). Check: `grep -c 'AUTH-008 (draft)' openspec/changes/phase-1-contracts/design.md` prints `0`.
 
 ## Workflow follow-up
 
 - The QA owner has approved Q-01..Q-21, Q-27 and Q-28, and T-01/T-02/T-03/T-05/T-06/T-08. Q-23, Q-24, Q-25, Q-26, T-04 and T-07 are approved with conditions; the conditions are recorded in `open-questions.md`.
-- The QA owner approves AUTH-008 explicitly before `auth-api` starts (D-12).
+- The QA owner approved AUTH-008 on 25 November 2026. `auth-api` can start (D-12).
 - The QA owner creates the Jira stories for the split changes. This change does not create them.
 - Q-23 and Q-28 are decided. `web-foundation` follows the conditions of Q-23 and T-07.
-- Archive this change only after its pull request is merged. `openspec/specs/` changes at archive time only.
+- Archive this change only after its pull request is merged. `openspec/specs/` changes at archive time only. Archive is a separate change.

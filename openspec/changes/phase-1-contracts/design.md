@@ -9,7 +9,7 @@ Phase 1 needs four parallel work streams: auth API, catalog API, web auth and we
 Constraints:
 
 - The QA owner owns `contracts/`, `tests/` and `openspec/specs/`. This change writes only to `contracts/openapi/` and this change directory.
-- Requirement IDs are stable. AUTH-008 is the only new requirement. It stays in the delta until the QA owner approves it (D-12).
+- Requirement IDs are stable. AUTH-008 is the only new requirement. The QA owner approved it on 25 November 2026 (D-12).
 - A test is derived from a requirement. The contract and the acceptance scenarios come before the code.
 - `docker compose up` must stay one command (NFR-009).
 
@@ -123,7 +123,7 @@ Phase 1 becomes five implementation changes plus one CI change. The planning cha
 
 | # | Change | Type | Scope | Requirements | Depends on | Parallel |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `phase-1-contracts` | planning | This contract, the AUTH-008 draft, the open questions, the plan | AUTH-008 (draft) | Phase 0 | No. It is the base. |
+| 1 | `phase-1-contracts` | planning | This contract, the AUTH-008 delta, the open questions, the plan | AUTH-008 | Phase 0 | No. It is the base. |
 | 2 | `auth-api` | feature | T-04 spike first. Then `users` table, migration, register, login, me, password hash, token | AUTH-001..008 | 1 and AUTH-008 approval | No. It is the first code change. |
 | 3 | `catalog-api` | feature | `products` table, migration, seed, list, search, pagination, detail | CAT-001..004 | 1 | No against 2. Both touch `services/api` and one migration chain. Run after 2. |
 | 4 | `web-foundation` | feature | Fetch wrapper, Problem mapping, MSW setup, generated types, test utilities, layout | WEB-004, WEB-008, WEB-009, WEB-010 | 1 | Yes, with 2 and 3. |
@@ -181,7 +181,7 @@ The verification codes come from the SRS. `U` = unit, `C` = component, `K` = con
 | AUTH-005 | M \| C | Component | Each protected endpoint returns 401 for a missing, an invalid and an expired token. |
 | AUTH-006 | M \| C | Component | The stored value is a hash. Two equal passwords give different hashes. The plain password is absent. |
 | AUTH-007 | M \| C | Component | A new account has the role `CUSTOMER`. |
-| AUTH-008 (draft) | M \| C,K | Component, contract | A valid token returns 200 with `id`, `email` and `role`. A missing token, a bad scheme, a tampered token, an expired token and `alg: none` return 401 with the same body and `WWW-Authenticate: Bearer`. The body has no password hash and no other secret-derived field (Q-29). |
+| AUTH-008 | M \| C,K | Component, contract | A valid token returns 200 with `id`, `email` and `role`. A missing token, a bad scheme, a tampered token, an expired token and `alg: none` return 401 with the same body and `WWW-Authenticate: Bearer`. The body has no password hash and no other secret-derived field (Q-29). |
 | CAT-001 | M \| C,D | Component, demonstration | The seed is idempotent. A second start keeps at least 20 products. |
 | CAT-002 | M \| C,K | Component, contract | No `pageSize` returns 10 items. `pageSize` and `page` change the page. The response matches `ProductPage`. |
 | CAT-003 | S \| U,C | Unit, component | The search predicate matches a substring of the name. The API returns only matching products. |
@@ -230,7 +230,7 @@ The QA owner does these tasks before `auth-api` starts. They are not part of thi
 1. Enrich the acceptance scenarios for AUTH-001..008 from the delta. The AUTH-008 delta has seven scenarios.
 2. Create the `tests/api/` skeleton: REST Assured, the OpenAPI response validator and one runnable smoke test.
 3. Write the acceptance tests for auth and catalog from the requirements.
-4. Approve AUTH-008. `auth-api` does not start before the approval.
+4. Approved AUTH-008 on 25 November 2026. `auth-api` is no longer blocked by this item.
 
 The conditions of Q-23, Q-24, Q-25, Q-26, T-04 and T-07 are part of the decision and are recorded in `open-questions.md`. They are not prerequisites. They bind the change that implements the answer.
 
@@ -238,11 +238,11 @@ The QA owner also creates the Jira stories for the split. This change does not c
 
 ## Risks / Trade-offs
 
-- [The contract is a draft] → Mark every proposed answer with its open-question ID. The implementation changes wait for approval. A change to a shape is cheap before the code exists.
+- [The contract is a draft] → Closed. All answers are decided and the contract is version 1.0.0. A change to a shape now needs a change proposal.
 - [Four streams read the contract differently] → One error schema, one `User` schema and one `AuthResponse` schema. The contract lint and the response validation catch drift.
 - [The two API changes conflict in one service] → Run them sequentially. Each change owns one migration and one route group.
 - [MSW handlers drift from the contract] → Generate the handler types from the OpenAPI file and fail CI on a mismatch (QA-020).
-- [The AUTH-008 draft is merged before approval] → Keep it in the change directory. `openspec/specs/` is unchanged. Archiving waits for the QA owner's review.
+- [The AUTH-008 draft is merged before approval] → Closed. The QA owner approved AUTH-008 on 25 November 2026. `openspec/specs/` changes at archive time only.
 - [A proposed answer is wrong] → The proposal is visible in the contract description and in `open-questions.md`. The QA owner can reject it without touching the code.
 
 ## Migration Plan
