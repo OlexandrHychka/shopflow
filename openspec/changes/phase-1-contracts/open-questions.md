@@ -1,10 +1,10 @@
 # Open Questions
 
-Status: reviewed. The QA owner approved Q-01 to Q-21, Q-27 and Q-28 on 22 November 2026. T-01, T-02, T-03, T-05, T-06 and T-08 are approved. T-04, T-07, Q-23, Q-24, Q-25 and Q-26 are approved with conditions. Q-22 is resolved. No question stays open.
+Status: closed. The QA owner approved Q-01 to Q-21, Q-27 and Q-28 on 22 November 2026. T-01, T-02, T-03, T-05, T-06 and T-08 are approved. T-04, T-07, Q-23, Q-24, Q-25 and Q-26 are approved with conditions. Each of these six items has a `Conditions` block. The conditions are part of the decision, not a note. Q-22 is resolved. Q-29 is approved on 25 November 2026. No question stays open.
 
 The OpenAPI draft in `contracts/openapi/api.yaml` encodes the proposed answers. The contract names the question ID where an answer affects a shape. A rejected answer changes the contract before the code exists.
 
-Last checked: 22 November 2026.
+Last checked: 25 November 2026.
 
 ## Part 1: Ambiguities in the requirements and the brief
 
@@ -146,7 +146,7 @@ Last checked: 22 November 2026.
 | B. A custom `{ "error": { "code", "message" } }` envelope | Simple, but every client learns a private format. |
 | C. The Fastify default error body | Leaks implementation detail. Risks NFR-005. |
 
-**Proposed answer.** Option A. Members: `type`, `title`, `status`, `detail`, optional `instance`, optional `errors[]`. Each field error has `pointer` (a JSON Pointer such as `/password`), `code` and `message`. Problem types: `validation-error` (400), `unauthorized` (401), `not-found` (404), `conflict` (409). The `detail` text contains no stack trace, no hash and no internal URL (NFR-005).
+**Proposed answer.** Option A. Members: `type`, `title`, `status`, `detail`, optional `instance`, optional `errors[]`. Each field error has `pointer` (a JSON Pointer such as `/password`), `code` and `message`. Problem types come from the closed set in Q-26. The `detail` text contains no stack trace, no hash and no internal URL (NFR-005).
 
 **Status: approved.**
 
@@ -332,16 +332,32 @@ Last checked: 22 November 2026.
 | B. `localStorage` | Simple. Readable by any script on the page. |
 | C. Memory only | Safe from persistence. The user logs in again after a refresh. |
 
-**Proposed answer.** Option A. The Web UI has Route Handlers for login, registration and logout. Each Route Handler stores the API token in an httpOnly cookie with these attributes:
+**Proposed answer.** Option A. The Web UI has three Route Handlers under its own origin: `POST /api/auth/login`, `POST /api/auth/register` and `POST /api/auth/logout`. Each Route Handler stores the API token in the cookie `shopflow_token` with these attributes:
 
+- `HttpOnly`
 - `SameSite=Lax`
 - `Path=/`
 - `Secure` only when the connection uses HTTPS
 - `Max-Age` equal to `expiresIn` (3600 seconds)
 
-When the API returns HTTP 401, the Route Handler clears the cookie and redirects the browser to the login page. Phase 1 has no refresh token. A stateless token cannot be revoked on the server. This is an accepted risk for phase 1.
+A successful login or registration stores the cookie and returns HTTP 303 with `Location: /`. A logout clears the cookie and returns HTTP 303 with `Location: /login`.
 
-An E2E test asserts that the token is not readable from `document.cookie` or `localStorage`.
+The Web UI separates the two sources of HTTP 401:
+
+- A protected data call returns 401. The Server Component or the Route Handler clears the cookie and redirects the browser to `/login`.
+- `POST /auth/login` returns 401. The login page stays open and shows the message from WEB-004. The Web UI does not clear the cookie and does not redirect.
+
+Phase 1 has no refresh token. A stateless token cannot be revoked on the server. This is an accepted risk for phase 1.
+
+**Conditions.**
+
+1. The cookie name is `shopflow_token`. A test asserts the name.
+2. The three Route Handlers have the paths above. A test asserts each path.
+3. The cookie is `HttpOnly`. An E2E test asserts that `document.cookie` does not contain `shopflow_token` and that `localStorage` holds no token.
+4. `Secure` follows the request protocol. A local HTTP request omits it.
+5. `Max-Age` is 3600. The cookie is not a session cookie.
+6. A 401 from a protected data call clears the cookie and redirects to `/login`. A 401 from `POST /auth/login` does not redirect.
+7. A successful login and a successful registration both set the cookie. A registration does not need a second login.
 
 **Status: approved with conditions.**
 
@@ -357,7 +373,14 @@ An E2E test asserts that the token is not readable from `document.cookie` or `lo
 | B. HTTP 400 | A valid request becomes an error. |
 | C. Clamp to the last page | The client cannot tell that it asked for a page that does not exist. |
 
-**Proposed answer.** Option A. The response is a valid page. `total` and `totalPages` describe the whole result set. An empty catalog returns `total: 0` and `totalPages: 0`. The `page` parameter has a maximum of 100000. A larger value returns HTTP 400 with `pointer: "/page"` and `code: out_of_range`.
+**Proposed answer.** Option A. The response is a valid page. `total` and `totalPages` describe the whole result set. An empty catalog returns `total: 0` and `totalPages: 0`. The `page` parameter has a maximum of 100000. A larger value returns HTTP 400 with `pointer: "page"` and `code: out_of_range`.
+
+**Conditions.**
+
+1. `totalPages` is `0` when `total` is `0`. Otherwise `totalPages` is `ceil(total / pageSize)`.
+2. A `page` below 1 returns HTTP 400 with `pointer: "page"`, `code: out_of_range` and `source: query`. A `page` above 100000 returns the same body.
+3. A `pageSize` outside 1..100 returns HTTP 400 with `pointer: "pageSize"`, `code: out_of_range` and `source: query` (Q-04, Q-25).
+4. A numeric bound uses `out_of_range` only. A string length uses `too_short` or `too_long` only. `page` and `pageSize` never produce `too_short` (Q-25).
 
 **Status: approved with conditions.**
 
@@ -379,6 +402,26 @@ An E2E test asserts that the token is not readable from `document.cookie` or `lo
 
 A wrong value type maps to `invalid_format`. Malformed JSON returns HTTP 400 with `type: ".../validation-error"` and no `errors` array. Q-27 does not produce a field error, because the path parameter accepts any string.
 
+**Conditions.**
+
+The code names the rule that failed. The mapping is fixed:
+
+| Rule | `code` |
+| --- | --- |
+| A required body field or query parameter is absent | `required` |
+| A string is shorter than its minimum | `too_short` |
+| A string is longer than its maximum | `too_long` |
+| A value has a wrong type, a bad format or a value outside an enum | `invalid_format` |
+| A number is outside its minimum or maximum | `out_of_range` |
+| The body has a property that the schema does not define | `unknown_field` |
+
+1. A numeric bound uses `out_of_range` only (Q-24). A string length uses `too_short` or `too_long` only.
+2. `source` is `body` for a body field and `query` for a query parameter. A path parameter never produces a field error (Q-27).
+3. The `pointer` of an unknown body property is the property name with a leading slash, for example `/nickname`.
+4. `RegisterRequest` and `LoginRequest` set `additionalProperties: false`. Without it, `unknown_field` is unreachable.
+5. A malformed JSON body returns HTTP 400 with no `errors` array.
+6. The `message` is fixed English text. A test asserts the `code`, not the `message`.
+
 **Reason.** The list stays in one place, so the contract and the tests cannot drift. Six codes cover every rule in Q-01, Q-19 and Q-24.
 
 **Status: approved with conditions.**
@@ -398,6 +441,28 @@ A wrong value type maps to `invalid_format`. Malformed JSON returns HTTP 400 wit
 **Proposed answer.** Option A. Status 500, `application/problem+json`, `title: "Internal server error"`, `detail: "An unexpected error occurred."`. The body has no stack trace, no SQL and no internal URL (NFR-005). The correlation ID stays in the `x-correlation-id` response header, which phase 0 already sets.
 
 Framework errors also use the Problem format: unknown route, HTTP 405, HTTP 413, HTTP 415 and malformed JSON all return a Problem body. The `x-correlation-id` header is present on every error response.
+
+**Conditions.**
+
+The `Problem.type` value comes from a closed set. The contract holds the set in one `ProblemType` schema:
+
+| `type` | HTTP status | Cause |
+| --- | --- | --- |
+| `validation-error` | 400 | A bad field or a malformed JSON body |
+| `unauthorized` | 401 | A bad credential or a bad token |
+| `not-found` | 404 | An unknown route or an unknown resource |
+| `method-not-allowed` | 405 | A method that the path does not define |
+| `conflict` | 409 | A duplicate registration |
+| `payload-too-large` | 413 | A body above the size limit |
+| `unsupported-media-type` | 415 | A media type other than `application/json` |
+| `internal-error` | 500 | An unexpected error |
+
+1. `Problem.type` refers to `ProblemType`. A value outside the set fails the contract lint.
+2. Each operation lists the response for HTTP 405. `POST /auth/register` and `POST /auth/login` also list HTTP 413 and HTTP 415, because they carry a body. An unknown route returns HTTP 404 with `type: not-found`; no operation owns that response, so it is documented in the info description and in the `NotFound` response.
+3. Every error response declares the header `x-correlation-id`. The contract holds it in one `CorrelationId` header component. QA-017 can then check the header.
+4. `GET /health` returns HTTP 503 with the phase 0 body, not a Problem body (Q-15). This is the only exception.
+5. A `detail` of a framework error names no route, no SQL and no internal URL.
+6. A framework error carries no `errors` array.
 
 **Status: approved with conditions.**
 
@@ -430,6 +495,24 @@ Framework errors also use the Problem format: unknown route, HTTP 405, HTTP 413,
 | C. The browser only. | The Next.js server cannot render data. |
 
 **Proposed answer.** Option A. Server Components and Route Handlers call the API. The browser calls only the Next.js origin. The API base URL comes from the server-side variable `API_BASE_URL`. It is not exposed as a `NEXT_PUBLIC_*` variable. The API has no CORS middleware. If the browser must call the API later, CORS is a separate change with an explicit origin allow-list.
+
+**Status: approved.**
+
+### Q-29: Fields that the identity response must not contain
+
+**Question.** AUTH-008 forbids a password hash and an extra field. NFR-010 and Q-14 allow a later additive field. Which fields must `GET /auth/me` never contain?
+
+**Options.**
+
+| Option | Effect |
+| --- | --- |
+| A. The three identity fields plus a ban on every secret-derived field | A later field is additive and allowed (NFR-010). A password hash, a salt and a token are never allowed. |
+| B. Exactly three fields and no other field | A new field needs a requirement change. It contradicts NFR-010 and Q-14. |
+| C. Any field that the server chooses | A password hash can reach the response. |
+
+**Proposed answer.** Option A. The response contains `id`, `email` and `role`. It contains no password hash, no password salt, no access token and no other value that derives from a secret. The `User` schema of the contract has no such property. A later field is additive and allowed by NFR-010 (Q-14).
+
+**Reason.** AUTH-008 protects the secret. A ban on every future field would block NFR-010.
 
 **Status: approved.**
 
@@ -499,6 +582,15 @@ The versions below were checked on 22 November 2026. Each recommendation names t
 
 **Reason.** The contract becomes the router, so a request shape cannot drift from the file. The spike measures the 3.1 support before the change commits to the glue. Option B is a working fallback with the same contract source.
 
+**Conditions.**
+
+1. The spike is the first task of `auth-api` and has a time box of one working day.
+2. The spike passes only if it shows all three: request validation from the contract, a 400 Problem body, and the bearer security handler for `GET /auth/me`.
+3. The QA owner accepts the spike result. If any of the three does not work, `auth-api` uses Option B.
+4. Option B writes the generated schemas to `services/api/src/generated/openapi-schemas.json`. The `contract-lint` job of `ci-contract-gates` regenerates the file and fails on a diff.
+5. Both options load `ajv-formats`, because the contract uses `format: email`.
+6. The versions are pinned in `services/api/package.json`.
+
 **Status: approved with conditions.**
 
 ### T-05: How migrations run in Compose
@@ -546,6 +638,15 @@ The versions below were checked on 22 November 2026. Each recommendation names t
 **Recommendation.** Option A, with this rule: pages are thin Server Components. They fetch data and pass it to presentational state components. The state components take props and do not fetch, so React Testing Library can test the loading, error, empty and filled states (WEB-008). The fetch wrapper and the Problem mapping are tested with MSW at unit level. Business logic stays in plain modules (WEB-009). The product list page and the product detail page fetch on the server with `cache: "no-store"`. The search input updates the URL. The auth forms call one Route Handler (Q-23).
 
 **Reason.** Next.js 16 renders Server Components by default. This keeps the token on the server and the client bundle small. Thin pages with prop-driven state components give WEB-008 a test seam that does not need a server. Option C stays limited to the auth Route Handler from Q-23.
+
+**Conditions.**
+
+1. The auth forms call the three Route Handlers from Q-23. The Web UI has no other Route Handler.
+2. The search input is a form with a submit button and the Enter key. Phase 1 has no debounce and sends no request on each keystroke.
+3. Pagination uses links that set the `page` query parameter. The browser navigates to a new URL and the Server Component fetches again.
+4. The product list page and the product detail page fetch with `cache: "no-store"`.
+5. A state component takes props and imports no fetch wrapper. It takes the data, a state value and a message.
+6. `API_BASE_URL` is read on the server only. The Web UI has no `NEXT_PUBLIC_*` API variable.
 
 **Status: approved with conditions.**
 

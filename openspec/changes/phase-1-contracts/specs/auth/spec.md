@@ -31,4 +31,4 @@ WHEN a user sends a valid access token to `GET /auth/me`, the API SHALL return t
 
 #### Scenario: Response without a password hash
 - **WHEN** a user sends a valid access token to `GET /auth/me`
-- **THEN** the response contains only the user ID, the email address and the role, and no password hash or other field
+- **THEN** the response contains the user ID, the email address and the role, and no password hash and no other field that derives from a secret
